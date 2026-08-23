@@ -63,18 +63,108 @@
     </section>
 
     <section class="screen" data-screen="food">
-      <div class="section-head"><div><span class="eyebrow">FUEL THE MACHINE</span><h2>RUOKA</h2></div><button class="danger" id="clearFoodBtn">TYHJENNÄ PÄIVÄ</button></div>
-      <form id="foodForm" class="panel form-grid">
-        <label>Nimi<input id="foodName" required placeholder="esim. jauheliha 10%" /></label>
-        <label>Määrä (g)<input id="foodGrams" type="number" min="1" step="1" required placeholder="200" /></label>
-        <label>kcal / 100 g<input id="foodKcal" type="number" min="0" step="0.1" required placeholder="176" /></label>
-        <label>Proteiini / 100 g<input id="foodProtein" type="number" min="0" step="0.1" placeholder="20" /></label>
-        <label>Hiilarit / 100 g<input id="foodCarbs" type="number" min="0" step="0.1" placeholder="0" /></label>
-        <label>Rasva / 100 g<input id="foodFat" type="number" min="0" step="0.1" placeholder="10" /></label>
-        <button class="primary full" type="submit">+ LISÄÄ RUOKA</button>
-      </form>
+      <div class="section-head">
+        <div><span class="eyebrow">FUEL THE MACHINE</span><h2>RUOKA</h2></div>
+        <button class="danger" id="clearFoodBtn">TYHJENNÄ PÄIVÄ</button>
+      </div>
+
+      <div class="food-actions">
+        <button class="food-action active" data-food-tab="search">🔍 HAE RUOKA</button>
+        <button class="food-action" data-food-tab="favorites">★ SUOSIKIT</button>
+        <button class="food-action" data-food-tab="meals">🍽 OMAT ATERIAT</button>
+        <button class="food-action" data-food-tab="custom">＋ OMA TUOTE</button>
+      </div>
+
+      <section class="food-tab active" data-food-panel="search">
+        <div class="panel">
+          <label class="search-box">HAE TUOTE
+            <input id="foodSearch" type="search" placeholder="esim. banaani, riisi, jauheliha..." autocomplete="off" />
+          </label>
+          <div id="foodSearchResults" class="search-results"></div>
+        </div>
+      </section>
+
+      <section class="food-tab" data-food-panel="favorites">
+        <div class="panel">
+          <div class="panel-title"><span>SUOSIKKIRUOAT</span><b>NOPEA LISÄYS</b></div>
+          <div id="favoriteFoods" class="search-results"></div>
+        </div>
+      </section>
+
+      <section class="food-tab" data-food-panel="meals">
+        <div class="panel">
+          <div class="panel-title"><span>OMAT ATERIAT</span><b>1 PAINALLUS</b></div>
+          <div id="savedMeals" class="search-results"></div>
+        </div>
+        <form id="mealForm" class="panel">
+          <div class="panel-title"><span>LUO ATERIA NYKYISISTÄ RUOISTA</span><b>TÄMÄ PÄIVÄ</b></div>
+          <div class="form-grid">
+            <label>Aterian nimi<input id="mealName" required placeholder="esim. Perus lounas" /></label>
+            <label>Ateriatyyppi
+              <select id="mealTypeCreate">
+                <option>Aamupala</option><option>Lounas</option><option>Välipala</option><option>Päivällinen</option><option>Iltapala</option>
+              </select>
+            </label>
+            <button class="primary full" type="submit">TALLENNA TÄMÄN ATERIAN RUOAT POHJAKSI</button>
+          </div>
+          <small class="help">Tallentaa tämän päivän valitun ateriatyypin ruoat uudelleenkäytettäväksi ateriaksi.</small>
+        </form>
+      </section>
+
+      <section class="food-tab" data-food-panel="custom">
+        <form id="customFoodForm" class="panel form-grid">
+          <label>Tuotteen nimi<input id="customFoodName" required placeholder="esim. Jauheliha 10%" /></label>
+          <label>kcal / 100 g<input id="customFoodKcal" type="number" min="0" step="0.1" required placeholder="176" /></label>
+          <label>Proteiini / 100 g<input id="customFoodProtein" type="number" min="0" step="0.1" placeholder="20" /></label>
+          <label>Hiilarit / 100 g<input id="customFoodCarbs" type="number" min="0" step="0.1" placeholder="0" /></label>
+          <label>Rasva / 100 g<input id="customFoodFat" type="number" min="0" step="0.1" placeholder="10" /></label>
+          <label class="checkbox-label"><input id="customFoodFavorite" type="checkbox" /> Lisää suosikiksi</label>
+          <button class="primary full" type="submit">＋ TALLENNA OMA TUOTE</button>
+        </form>
+      </section>
+
+      <div class="panel quick-copy">
+        <div class="panel-title"><span>NOPEAT TOIMINNOT</span><b>YESTERDAY → TODAY</b></div>
+        <div class="copy-grid">
+          <button id="copyYesterdayAll" class="secondary">⚡ KOPIOI KOKO EILINEN</button>
+          <select id="copyMealType">
+            <option>Aamupala</option><option>Lounas</option><option>Välipala</option><option>Päivällinen</option><option>Iltapala</option>
+          </select>
+          <button id="copyYesterdayMeal" class="secondary">KOPIOI EILISEN ATERIA</button>
+        </div>
+      </div>
+
+      <div class="nutrition-headline panel">
+        <div>
+          <span>TÄNÄÄN</span>
+          <strong id="foodBigCalories">0 / 2000 kcal</strong>
+          <small id="foodRemaining">2000 kcal jäljellä</small>
+        </div>
+        <div class="ring" id="foodRing"><span id="foodPct">0%</span></div>
+      </div>
+
       <div id="foodTotals" class="mini-summary"></div>
-      <div id="foodList" class="stack"></div>
+      <div id="foodMealGroups" class="meal-groups"></div>
+
+      <dialog id="addFoodDialog" class="food-dialog">
+        <form method="dialog" id="addFoodDialogForm">
+          <div class="dialog-head">
+            <div><span class="eyebrow">ADD FUEL</span><h3 id="dialogFoodName">RUOKA</h3></div>
+            <button value="cancel" class="dialog-x">×</button>
+          </div>
+          <input type="hidden" id="dialogFoodId" />
+          <div class="form-grid">
+            <label>Määrä (g)<input id="dialogFoodGrams" type="number" min="1" step="1" value="100" required /></label>
+            <label>Ateria
+              <select id="dialogMealType">
+                <option>Aamupala</option><option>Lounas</option><option>Välipala</option><option>Päivällinen</option><option>Iltapala</option>
+              </select>
+            </label>
+          </div>
+          <div id="dialogFoodMacros" class="dialog-macros"></div>
+          <button id="dialogAddFood" value="default" class="primary full" type="submit">＋ LISÄÄ PÄIVÄÄN</button>
+        </form>
+      </dialog>
     </section>
 
     <section class="screen" data-screen="workout">

@@ -1,13 +1,38 @@
 
 const KEY='ironlog-v1';
+const BUILTIN_FOODS=[
+  {id:'b_oats',name:'Kaurahiutale',kcal:370,protein:13,carbs:60,fat:7,favorite:false,builtin:true},
+  {id:'b_banana',name:'Banaani',kcal:89,protein:1.1,carbs:20.2,fat:0.3,favorite:false,builtin:true},
+  {id:'b_rice',name:'Riisi, keitetty',kcal:130,protein:2.7,carbs:28,fat:0.3,favorite:false,builtin:true},
+  {id:'b_chicken',name:'Broilerin filee, kypsä',kcal:165,protein:31,carbs:0,fat:3.6,favorite:false,builtin:true},
+  {id:'b_beef10',name:'Jauheliha 10 %, kypsä',kcal:210,protein:26,carbs:0,fat:11,favorite:false,builtin:true},
+  {id:'b_egg',name:'Kananmuna',kcal:143,protein:12.6,carbs:0.7,fat:9.5,favorite:false,builtin:true},
+  {id:'b_quark',name:'Maitorahka, rasvaton',kcal:67,protein:12,carbs:4,fat:0.3,favorite:false,builtin:true},
+  {id:'b_pasta',name:'Makaroni, keitetty',kcal:150,protein:5,carbs:30,fat:1,favorite:false,builtin:true},
+  {id:'b_rye',name:'Ruisleipä',kcal:230,protein:8,carbs:42,fat:2.5,favorite:false,builtin:true},
+  {id:'b_cucumber',name:'Kurkku',kcal:12,protein:0.7,carbs:1.4,fat:0.1,favorite:false,builtin:true}
+];
 const defaultState={
   settings:{calories:2000,protein:150,carbs:200,fat:70},
-  food:[], workouts:[], runs:[], weights:[]
+  food:[], customFoods:[], savedMeals:[], workouts:[], runs:[], weights:[]
 };
 let state=load();
+state.customFoods=state.customFoods||[];
+state.savedMeals=state.savedMeals||[];
 let runImageData=null;
 
-function load(){try{return {...defaultState,...JSON.parse(localStorage.getItem(KEY)||'{}')}}catch(e){return structuredClone(defaultState)}}
+function load(){
+  try{
+    const saved=JSON.parse(localStorage.getItem(KEY)||'{}');
+    return {
+      ...structuredClone(defaultState),
+      ...saved,
+      settings:{...defaultState.settings,...(saved.settings||{})},
+      food:saved.food||[],customFoods:saved.customFoods||[],savedMeals:saved.savedMeals||[],
+      workouts:saved.workouts||[],runs:saved.runs||[],weights:saved.weights||[]
+    };
+  }catch(e){return structuredClone(defaultState)}
+}
 function save(){localStorage.setItem(KEY,JSON.stringify(state)); renderAll()}
 function today(){return new Date().toISOString().slice(0,10)}
 function fmtDate(s){return new Date(s+'T12:00:00').toLocaleDateString('fi-FI')}
@@ -21,17 +46,7 @@ document.querySelectorAll('[data-go]').forEach(btn=>btn.onclick=()=>{
   window.scrollTo({top:0,behavior:'smooth'});
 });
 
-document.getElementById('foodForm').addEventListener('submit',e=>{
-  e.preventDefault();
-  const grams=num(foodGrams.value), f=grams/100;
-  state.food.push({
-    id:uid(),date:today(),name:foodName.value.trim(),grams,
-    kcal:num(foodKcal.value)*f,protein:num(foodProtein.value)*f,
-    carbs:num(foodCarbs.value)*f,fat:num(foodFat.value)*f
-  });
-  e.target.reset(); save();
-});
-document.getElementById('clearFoodBtn').onclick=()=>{state.food=state.food.filter(x=>x.date!==today());save()};
+document.getElementById('clearFoodBtn').onclick=()=>{if(confirm('Tyhjennetäänkö tämän päivän ruoat?')){state.food=state.food.filter(x=>x.date!==today());save()}};
 
 document.getElementById('workoutForm').addEventListener('submit',e=>{
   e.preventDefault();
@@ -254,12 +269,109 @@ function renderHome(){
   streakDays.textContent=streak;
 }
 
-function renderFood(){
-  const items=state.food.filter(x=>x.date===today()).slice().reverse();
-  foodList.innerHTML=items.map(x=>`<div class="entry"><div><strong>${esc(x.name)} — ${Math.round(x.grams)} g</strong><small>${Math.round(x.kcal)} kcal · P ${Math.round(x.protein)} · H ${Math.round(x.carbs)} · R ${Math.round(x.fat)}</small></div><button onclick="del('food','${x.id}')">×</button></div>`).join('')||'<div class="mini-summary">Ei ruokia vielä tänään.</div>';
-  const t=k=>items.reduce((a,b)=>a+num(b[k]),0);
-  foodTotals.textContent=`Yhteensä ${Math.round(t('kcal'))} kcal · Proteiini ${Math.round(t('protein'))} g · Hiilarit ${Math.round(t('carbs'))} g · Rasva ${Math.round(t('fat'))} g`;
+function allFoodProducts(){
+  const custom=state.customFoods.map(x=>({...x,builtin:false}));
+  const builtin=BUILTIN_FOODS.map(x=>{
+    const override=state.customFoods.find(c=>c.id===x.id && c.overrideBuiltin);
+    return override?{...x,...override}:{...x};
+  });
+  return [...builtin,...custom.filter(x=>!x.overrideBuiltin)];
 }
+function getFoodProduct(id){return allFoodProducts().find(x=>x.id===id)}
+function isFavoriteFood(id){
+  const c=state.customFoods.find(x=>x.id===id);
+  if(c) return !!c.favorite;
+  return !!state.settings?.favoriteBuiltins?.includes(id);
+}
+function setFavoriteFood(id,value){
+  const c=state.customFoods.find(x=>x.id===id);
+  if(c){c.favorite=value}
+  else{
+    state.settings.favoriteBuiltins=state.settings.favoriteBuiltins||[];
+    if(value && !state.settings.favoriteBuiltins.includes(id)) state.settings.favoriteBuiltins.push(id);
+    if(!value) state.settings.favoriteBuiltins=state.settings.favoriteBuiltins.filter(x=>x!==id);
+  }
+  save();
+}
+function foodCard(p){
+  const fav=isFavoriteFood(p.id);
+  return `<div class="food-result">
+    <button class="fav-btn ${fav?'on':''}" onclick="toggleFoodFavorite('${p.id}')">${fav?'★':'☆'}</button>
+    <button class="food-main" onclick="openAddFood('${p.id}')">
+      <strong>${esc(p.name)}</strong>
+      <small>${Math.round(p.kcal)} kcal · P ${round1(p.protein)} · H ${round1(p.carbs)} · R ${round1(p.fat)} / 100 g</small>
+    </button>
+    <button class="food-plus" onclick="openAddFood('${p.id}')">＋</button>
+  </div>`;
+}
+window.toggleFoodFavorite=(id)=>setFavoriteFood(id,!isFavoriteFood(id));
+window.openAddFood=(id)=>{
+  const p=getFoodProduct(id); if(!p)return;
+  dialogFoodId.value=id; dialogFoodName.textContent=p.name; dialogFoodGrams.value=100;
+  updateDialogMacros();
+  addFoodDialog.showModal();
+};
+function updateDialogMacros(){
+  const p=getFoodProduct(dialogFoodId.value); if(!p)return;
+  const f=num(dialogFoodGrams.value)/100;
+  dialogFoodMacros.innerHTML=`<b>${Math.round(p.kcal*f)} kcal</b><span>P ${round1(p.protein*f)} g</span><span>H ${round1(p.carbs*f)} g</span><span>R ${round1(p.fat*f)} g</span>`;
+}
+function round1(n){return Math.round(num(n)*10)/10}
+function yesterdayDate(){const d=new Date();d.setDate(d.getDate()-1);return d.toISOString().slice(0,10)}
+
+function renderFood(){
+  const query=(document.getElementById('foodSearch')?.value||'').trim().toLowerCase();
+  let products=allFoodProducts();
+  const matches=(query?products.filter(p=>p.name.toLowerCase().includes(query)):products).slice(0,20);
+  foodSearchResults.innerHTML=matches.map(foodCard).join('')||'<div class="empty-note">Ei hakutuloksia.</div>';
+
+  const favorites=products.filter(p=>isFavoriteFood(p.id));
+  favoriteFoods.innerHTML=favorites.map(foodCard).join('')||'<div class="empty-note">Ei suosikkeja vielä. Paina tähteä tuotteen vierestä.</div>';
+
+  savedMeals.innerHTML=state.savedMeals.map(m=>{
+    const kcal=m.items.reduce((s,x)=>s+num(x.kcal),0);
+    return `<div class="food-result saved-meal">
+      <button class="food-main" onclick="addSavedMeal('${m.id}')">
+        <strong>${esc(m.name)}</strong>
+        <small>${m.mealType} · ${m.items.length} tuotetta · ${Math.round(kcal)} kcal</small>
+      </button>
+      <button class="food-plus" onclick="addSavedMeal('${m.id}')">＋</button>
+      <button class="delete-small" onclick="deleteSavedMeal('${m.id}')">×</button>
+    </div>`;
+  }).join('')||'<div class="empty-note">Ei tallennettuja aterioita vielä.</div>';
+
+  const todayItems=state.food.filter(x=>x.date===today());
+  const total=k=>todayItems.reduce((a,b)=>a+num(b[k]),0);
+  const kcal=total('kcal'), protein=total('protein'), carbs=total('carbs'), fat=total('fat');
+  const goal=state.settings.calories||2000;
+  const percent=Math.min(100,Math.round(kcal/goal*100));
+  foodBigCalories.textContent=`${Math.round(kcal)} / ${goal} kcal`;
+  foodRemaining.textContent=`${Math.max(0,Math.round(goal-kcal))} kcal jäljellä`;
+  foodPct.textContent=percent+'%';
+  foodRing.style.background=`conic-gradient(var(--red) ${percent*3.6}deg,#242424 0deg)`;
+  foodTotals.textContent=`Proteiini ${Math.round(protein)} / ${state.settings.protein} g · Hiilarit ${Math.round(carbs)} / ${state.settings.carbs} g · Rasva ${Math.round(fat)} / ${state.settings.fat} g`;
+
+  const mealTypes=['Aamupala','Lounas','Välipala','Päivällinen','Iltapala'];
+  foodMealGroups.innerHTML=mealTypes.map(type=>{
+    const items=todayItems.filter(x=>(x.mealType||'Lounas')===type);
+    const mkcal=items.reduce((s,x)=>s+num(x.kcal),0);
+    return `<section class="meal-group">
+      <div class="meal-group-head"><div><span>${type.toUpperCase()}</span><b>${Math.round(mkcal)} kcal</b></div><button onclick="setMealAndSearch('${type}')">＋</button></div>
+      ${items.length?items.map(x=>`<div class="entry"><div><strong>${esc(x.name)} — ${Math.round(x.grams)} g</strong><small>${Math.round(x.kcal)} kcal · P ${Math.round(x.protein)} · H ${Math.round(x.carbs)} · R ${Math.round(x.fat)}</small></div><button onclick="del('food','${x.id}')">×</button></div>`).join(''):'<div class="meal-empty">Ei ruokia.</div>'}
+    </section>`;
+  }).join('');
+}
+window.setMealAndSearch=(type)=>{
+  dialogMealType.value=type;
+  document.querySelector('[data-food-tab="search"]').click();
+  foodSearch.focus();
+};
+window.addSavedMeal=(id)=>{
+  const m=state.savedMeals.find(x=>x.id===id); if(!m)return;
+  m.items.forEach(i=>state.food.push({...i,id:uid(),date:today(),mealType:m.mealType}));
+  save();
+};
+window.deleteSavedMeal=(id)=>{state.savedMeals=state.savedMeals.filter(x=>x.id!==id);save()};
 function renderWorkouts(){
   workoutList.innerHTML=state.workouts.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,30).map(x=>`<div class="entry"><div><strong>${esc(x.name)}</strong><small>${fmtDate(x.date)} · ${x.sets} × ${x.reps} @ ${x.kg||0} kg</small></div><button onclick="del('workouts','${x.id}')">×</button></div>`).join('')||'<div class="mini-summary">Ei treenejä vielä.</div>';
 }
@@ -296,6 +408,62 @@ function renderSettings(){
   goalCalories.value=state.settings.calories;goalProtein.value=state.settings.protein;goalCarbs.value=state.settings.carbs;goalFat.value=state.settings.fat;
 }
 function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+
+// FOOD V3 interactions
+document.querySelectorAll('[data-food-tab]').forEach(btn=>btn.addEventListener('click',()=>{
+  document.querySelectorAll('[data-food-tab]').forEach(b=>b.classList.toggle('active',b===btn));
+  document.querySelectorAll('[data-food-panel]').forEach(p=>p.classList.toggle('active',p.dataset.foodPanel===btn.dataset.foodTab));
+}));
+document.getElementById('foodSearch').addEventListener('input',renderFood);
+document.getElementById('dialogFoodGrams').addEventListener('input',updateDialogMacros);
+
+document.getElementById('addFoodDialogForm').addEventListener('submit',e=>{
+  e.preventDefault();
+  const p=getFoodProduct(dialogFoodId.value); if(!p)return;
+  const grams=num(dialogFoodGrams.value), f=grams/100;
+  state.food.push({
+    id:uid(),date:today(),mealType:dialogMealType.value,productId:p.id,name:p.name,grams,
+    kcal:p.kcal*f,protein:p.protein*f,carbs:p.carbs*f,fat:p.fat*f
+  });
+  addFoodDialog.close(); save();
+});
+
+document.getElementById('customFoodForm').addEventListener('submit',e=>{
+  e.preventDefault();
+  state.customFoods.push({
+    id:'c_'+uid(),name:customFoodName.value.trim(),kcal:num(customFoodKcal.value),
+    protein:num(customFoodProtein.value),carbs:num(customFoodCarbs.value),fat:num(customFoodFat.value),
+    favorite:customFoodFavorite.checked
+  });
+  e.target.reset();
+  document.querySelector('[data-food-tab="search"]').click();
+  save();
+});
+
+document.getElementById('mealForm').addEventListener('submit',e=>{
+  e.preventDefault();
+  const type=mealTypeCreate.value;
+  const items=state.food.filter(x=>x.date===today() && (x.mealType||'Lounas')===type);
+  if(!items.length){alert('Tässä ateriatyypissä ei ole vielä ruokia tänään.');return}
+  state.savedMeals.push({
+    id:'m_'+uid(),name:mealName.value.trim(),mealType:type,
+    items:items.map(x=>({productId:x.productId,name:x.name,grams:x.grams,kcal:x.kcal,protein:x.protein,carbs:x.carbs,fat:x.fat}))
+  });
+  e.target.reset();save();
+});
+
+document.getElementById('copyYesterdayAll').addEventListener('click',()=>{
+  const y=yesterdayDate(), items=state.food.filter(x=>x.date===y);
+  if(!items.length){alert('Eiliseltä ei löytynyt ruokia.');return}
+  items.forEach(x=>state.food.push({...x,id:uid(),date:today()}));save();
+});
+document.getElementById('copyYesterdayMeal').addEventListener('click',()=>{
+  const y=yesterdayDate(), type=copyMealType.value;
+  const items=state.food.filter(x=>x.date===y && (x.mealType||'Lounas')===type);
+  if(!items.length){alert(`Eiliseltä ei löytynyt ateriaa: ${type}`);return}
+  items.forEach(x=>state.food.push({...x,id:uid(),date:today()}));save();
+});
+
 function renderAll(){renderHome();renderFood();renderWorkouts();renderRuns();renderWeights();renderProgress();renderSettings()}
 renderAll();
 

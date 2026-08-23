@@ -53,3 +53,15 @@ Jaa -> Lisää Koti-valikkoon.
 - Löydetyt arvot täytetään Lenkit-lomakkeeseen automaattisesti.
 - Arvot kannattaa aina tarkistaa ennen tallennusta.
 - OCR tarvitsee internet-yhteyden ensimmäisellä käyttökerralla, koska Tesseract.js ladataan CDN:stä.
+
+
+## V3 – Ruoka 2.0
+- Ruokahaku
+- Sisäänrakennettu aloitusruokakanta
+- Omat tuotteet
+- Suosikkiruoat
+- Ateriajako: aamupala, lounas, välipala, päivällinen, iltapala
+- Omat tallennetut ateriat
+- Kopioi eilisen koko päivä
+- Kopioi eilisen valittu ateria
+- Päivän iso kalorimittari ja makroyhteenveto
