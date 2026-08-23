@@ -1,0 +1,9 @@
+{
+  "name": "IRONLOG — Hardcore Fitness Tracker",
+  "short_name": "IRONLOG",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#070707",
+  "theme_color": "#070707",
+  "description": "Hardcore fitness, nutrition, weight and workout tracker."
+}
