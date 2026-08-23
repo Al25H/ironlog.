@@ -39,3 +39,17 @@ Jaa -> Lisää Koti-valikkoon.
 - Ruokatietokanta ja viivakoodi
 - Apple Health myöhemmässä natiiviversiossa
 - Pilvivarmistus
+
+
+## V2 – automaattinen lenkin tietojen luku
+- Tesseract.js OCR lukee älykellon / treenisovelluksen screenshotin suoraan selaimessa.
+- Appi yrittää tunnistaa:
+  - lajin
+  - matkan (km)
+  - ajan
+  - keskivauhdin
+  - keskisykkeen
+  - kalorit
+- Löydetyt arvot täytetään Lenkit-lomakkeeseen automaattisesti.
+- Arvot kannattaa aina tarkistaa ennen tallennusta.
+- OCR tarvitsee internet-yhteyden ensimmäisellä käyttökerralla, koska Tesseract.js ladataan CDN:stä.

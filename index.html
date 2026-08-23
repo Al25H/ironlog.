@@ -95,14 +95,21 @@
         <label class="upload">
           <input id="runScreenshot" type="file" accept="image/*" />
           <span>📸 LISÄÄ KELLON SCREENSHOT</span>
-          <small>Ensimmäisessä versiossa kuva tallennetaan lenkin yhteyteen. Automaattinen tietojen luku lisätään seuraavaksi.</small>
+          <small>Appi lukee kuvasta automaattisesti matkan, ajan, sykkeen ja kalorit. Tarkista arvot ennen tallennusta.</small>
         </label>
+        <div id="ocrStatus" class="ocr-status hidden">VALMIS LUKEMAAN KUVA</div>
+        <div id="ocrProgressWrap" class="ocr-progress hidden"><i id="ocrProgressBar"></i></div>
         <img id="runPreview" class="preview hidden" alt="Lenkin näyttökuva" />
+        <details id="ocrDetails" class="ocr-details hidden">
+          <summary>Näytä tunnistettu teksti</summary>
+          <pre id="ocrRawText"></pre>
+        </details>
       </div>
       <form id="runForm" class="panel form-grid">
         <label>Laji<select id="runType"><option>Juoksu</option><option>Kävely</option><option>Pyöräily</option><option>Muu</option></select></label>
         <label>Matka (km)<input id="runKm" type="number" min="0" step="0.01" placeholder="5.42" /></label>
-        <label>Aika (min)<input id="runMinutes" type="number" min="0" step="1" placeholder="34" /></label>
+        <label>Aika (min)<input id="runMinutes" type="number" min="0" step="0.1" placeholder="34.3" /></label>
+        <label>Keskivauhti (min/km)<input id="runPace" type="text" placeholder="6:20" /></label>
         <label>Keskisyke<input id="runHr" type="number" min="0" step="1" placeholder="152" /></label>
         <label>Kalorit<input id="runCalories" type="number" min="0" step="1" placeholder="412" /></label>
         <button class="primary full" type="submit">+ TALLENNA LENKKI</button>
@@ -157,6 +164,7 @@
     <button data-go="settings">⚙<span>ASETUKSET</span></button>
   </nav>
 
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>

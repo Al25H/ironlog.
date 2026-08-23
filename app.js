@@ -39,15 +39,181 @@ document.getElementById('workoutForm').addEventListener('submit',e=>{
   e.target.reset();save();
 });
 
-document.getElementById('runScreenshot').addEventListener('change',e=>{
+document.getElementById('runScreenshot').addEventListener('change',async e=>{
   const file=e.target.files[0]; if(!file)return;
+
   const reader=new FileReader();
-  reader.onload=()=>{runImageData=reader.result;runPreview.src=runImageData;runPreview.classList.remove('hidden')};
+  reader.onload=async()=>{
+    runImageData=reader.result;
+    runPreview.src=runImageData;
+    runPreview.classList.remove('hidden');
+    await readRunScreenshot(file);
+  };
   reader.readAsDataURL(file);
 });
+
+async function readRunScreenshot(file){
+  const status=document.getElementById('ocrStatus');
+  const wrap=document.getElementById('ocrProgressWrap');
+  const bar=document.getElementById('ocrProgressBar');
+  const details=document.getElementById('ocrDetails');
+  const raw=document.getElementById('ocrRawText');
+
+  status.classList.remove('hidden');
+  wrap.classList.remove('hidden');
+  status.textContent='LUETAAN KUVA...';
+  bar.style.width='2%';
+  details.classList.add('hidden');
+
+  if(!window.Tesseract){
+    status.textContent='KUVANLUKUA EI SAATU LADATTUA. TARKISTA INTERNET-YHTEYS.';
+    wrap.classList.add('hidden');
+    return;
+  }
+
+  try{
+    const result=await Tesseract.recognize(file,'eng',{
+      logger:m=>{
+        if(m.status==='recognizing text'){
+          const p=Math.max(2,Math.round((m.progress||0)*100));
+          bar.style.width=p+'%';
+          status.textContent=`LUETAAN KUVA... ${p}%`;
+        }
+      }
+    });
+
+    const text=(result.data.text||'').replace(/\r/g,'');
+    raw.textContent=text || 'Tekstiä ei tunnistettu.';
+    details.classList.remove('hidden');
+
+    const parsed=parseWorkoutScreenshot(text);
+    applyParsedRunData(parsed);
+
+    const found=[
+      parsed.km!=null?'matka':'',
+      parsed.minutes!=null?'aika':'',
+      parsed.pace?'vauhti':'',
+      parsed.hr!=null?'syke':'',
+      parsed.calories!=null?'kalorit':''
+    ].filter(Boolean);
+
+    if(found.length){
+      status.textContent='TUNNISTETTU: '+found.join(', ').toUpperCase()+' — TARKISTA ARVOT';
+    }else{
+      status.textContent='TIETOJA EI SAATU VARMASTI TUNNISTETTUA — TÄYTÄ KÄSIN';
+    }
+    bar.style.width='100%';
+    setTimeout(()=>wrap.classList.add('hidden'),700);
+  }catch(err){
+    console.error(err);
+    status.textContent='KUVAN LUKU EPÄONNISTUI — VOIT TÄYTTÄÄ TIEDOT KÄSIN';
+    wrap.classList.add('hidden');
+  }
+}
+
+function parseWorkoutScreenshot(input){
+  const text=String(input||'')
+    .replace(/,/g,'.')
+    .replace(/[–—]/g,'-')
+    .replace(/[ \t]+/g,' ');
+
+  const lines=text.split('\n').map(x=>x.trim()).filter(Boolean);
+  const result={km:null,minutes:null,pace:null,hr:null,calories:null,type:null};
+
+  const all=text.toLowerCase();
+
+  // Activity type
+  if(/\b(run|running|juoksu)\b/i.test(text)) result.type='Juoksu';
+  else if(/\b(walk|walking|kävely|walking outdoor)\b/i.test(text)) result.type='Kävely';
+  else if(/\b(cycl|cycling|bike|pyöräily)\b/i.test(text)) result.type='Pyöräily';
+
+  // Distance: supports "5.42 km", "5,42 KM"
+  const distMatches=[...text.matchAll(/(\d{1,3}(?:[.,]\d{1,3})?)\s*(?:km|kilometers?|kilometres?)/gi)];
+  if(distMatches.length){
+    const nums=distMatches.map(m=>Number(m[1].replace(',','.'))).filter(n=>n>0 && n<500);
+    if(nums.length) result.km=nums[0];
+  }
+
+  // Calories: supports kcal/calories/active calories
+  const kcalPatterns=[
+    /(?:active\s+calories?|calories?|kalorit|energia)[^\d]{0,18}(\d{2,5})\s*(?:kcal|cal)?/i,
+    /(\d{2,5})\s*kcal/i
+  ];
+  for(const p of kcalPatterns){
+    const m=text.match(p);
+    if(m){ const n=Number(m[1]); if(n>=10 && n<=10000){result.calories=n;break;} }
+  }
+
+  // Heart rate
+  const hrPatterns=[
+    /(?:avg(?:\.|erage)?\s*(?:heart\s*rate|hr)|average\s*heart\s*rate|keskisyke|avg\s*hr|heart\s*rate)[^\d]{0,20}(\d{2,3})\s*(?:bpm)?/i,
+    /(\d{2,3})\s*bpm/i
+  ];
+  for(const p of hrPatterns){
+    const m=text.match(p);
+    if(m){ const n=Number(m[1]); if(n>=40 && n<=240){result.hr=n;break;} }
+  }
+
+  // Pace e.g. 6:20 /km, 6'20"/km
+  const pacePatterns=[
+    /(\d{1,2})\s*[:']\s*(\d{2})\s*(?:["”]?\s*)?(?:\/\s*km|min\/km|per\s*km)/i,
+    /(?:avg(?:\.|erage)?\s*pace|keskivauhti|pace)[^\d]{0,20}(\d{1,2})\s*[:']\s*(\d{2})/i
+  ];
+  for(const p of pacePatterns){
+    const m=text.match(p);
+    if(m){
+      const mm=Number(m[1]), ss=Number(m[2]);
+      if(mm>=1 && mm<=30 && ss>=0 && ss<60){result.pace=`${mm}:${String(ss).padStart(2,'0')}`;break;}
+    }
+  }
+
+  // Duration: prefer values near time/duration labels.
+  const timePatterns=[
+    /(?:duration|workout\s*time|elapsed\s*time|aika|kesto)[^\d]{0,18}(\d{1,2}):(\d{2}):(\d{2})/i,
+    /(?:duration|workout\s*time|elapsed\s*time|aika|kesto)[^\d]{0,18}(\d{1,3}):(\d{2})/i
+  ];
+  for(const p of timePatterns){
+    const m=text.match(p);
+    if(m){
+      if(m.length===4){
+        const h=Number(m[1]), mi=Number(m[2]), s=Number(m[3]);
+        result.minutes=+(h*60+mi+s/60).toFixed(1);
+      }else{
+        const mi=Number(m[1]), s=Number(m[2]);
+        result.minutes=+(mi+s/60).toFixed(1);
+      }
+      break;
+    }
+  }
+
+  // Fallback: find standalone duration-looking times, avoiding likely pace if possible
+  if(result.minutes==null){
+    const hms=[...text.matchAll(/\b(\d{1,2}):(\d{2}):(\d{2})\b/g)];
+    if(hms.length){
+      const m=hms[0]; result.minutes=+(Number(m[1])*60+Number(m[2])+Number(m[3])/60).toFixed(1);
+    } else {
+      const ms=[...text.matchAll(/\b(\d{1,3}):(\d{2})\b/g)]
+        .map(m=>({raw:m[0],min:Number(m[1]),sec:Number(m[2])}))
+        .filter(x=>x.sec<60 && !(result.pace && x.raw===result.pace));
+      const likely=ms.find(x=>x.min>=10) || ms[0];
+      if(likely) result.minutes=+(likely.min+likely.sec/60).toFixed(1);
+    }
+  }
+
+  return result;
+}
+
+function applyParsedRunData(p){
+  if(p.type) document.getElementById('runType').value=p.type;
+  if(p.km!=null) document.getElementById('runKm').value=p.km;
+  if(p.minutes!=null) document.getElementById('runMinutes').value=p.minutes;
+  if(p.pace) document.getElementById('runPace').value=p.pace;
+  if(p.hr!=null) document.getElementById('runHr').value=p.hr;
+  if(p.calories!=null) document.getElementById('runCalories').value=p.calories;
+}
 document.getElementById('runForm').addEventListener('submit',e=>{
   e.preventDefault();
-  state.runs.push({id:uid(),date:today(),type:runType.value,km:num(runKm.value),minutes:num(runMinutes.value),hr:num(runHr.value),calories:num(runCalories.value),image:runImageData});
+  state.runs.push({id:uid(),date:today(),type:runType.value,km:num(runKm.value),minutes:num(runMinutes.value),pace:runPace.value.trim(),hr:num(runHr.value),calories:num(runCalories.value),image:runImageData});
   runImageData=null;runPreview.classList.add('hidden');runPreview.removeAttribute('src');runScreenshot.value='';e.target.reset();save();
 });
 
@@ -98,7 +264,7 @@ function renderWorkouts(){
   workoutList.innerHTML=state.workouts.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,30).map(x=>`<div class="entry"><div><strong>${esc(x.name)}</strong><small>${fmtDate(x.date)} · ${x.sets} × ${x.reps} @ ${x.kg||0} kg</small></div><button onclick="del('workouts','${x.id}')">×</button></div>`).join('')||'<div class="mini-summary">Ei treenejä vielä.</div>';
 }
 function renderRuns(){
-  runList.innerHTML=state.runs.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,30).map(x=>`<div class="entry"><div><strong>${esc(x.type)} — ${x.km.toFixed(2)} km</strong><small>${fmtDate(x.date)} · ${x.minutes} min · syke ${x.hr||'—'} · ${x.calories||0} kcal ${x.image?'· 📸':''}</small></div><button onclick="del('runs','${x.id}')">×</button></div>`).join('')||'<div class="mini-summary">Ei lenkkejä vielä.</div>';
+  runList.innerHTML=state.runs.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,30).map(x=>`<div class="entry"><div><strong>${esc(x.type)} — ${x.km.toFixed(2)} km</strong><small>${fmtDate(x.date)} · ${x.minutes} min${x.pace?` · ${x.pace}/km`:''} · syke ${x.hr||'—'} · ${x.calories||0} kcal ${x.image?'· 📸':''}</small></div><button onclick="del('runs','${x.id}')">×</button></div>`).join('')||'<div class="mini-summary">Ei lenkkejä vielä.</div>';
 }
 function renderWeights(){
   const sorted=state.weights.slice().sort((a,b)=>b.date.localeCompare(a.date));
