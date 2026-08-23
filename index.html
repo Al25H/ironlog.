@@ -134,6 +134,52 @@
         </div>
       </div>
 
+
+      <div class="panel barcode-panel">
+        <div class="panel-title"><span>VIIVAKOODI</span><b>SCAN → SEARCH → ADD</b></div>
+        <div class="barcode-actions">
+          <button id="openBarcodeScanner" class="primary">📷 SKANNAA VIIVAKOODI</button>
+          <div class="barcode-manual">
+            <input id="manualBarcode" inputmode="numeric" placeholder="tai kirjoita viivakoodi" />
+            <button id="lookupManualBarcode" class="secondary">HAE</button>
+          </div>
+        </div>
+        <div id="barcodeStatus" class="barcode-status">Valmis skannaamaan.</div>
+      </div>
+
+      <dialog id="barcodeDialog" class="food-dialog barcode-dialog">
+        <div class="dialog-head">
+          <div><span class="eyebrow">BARCODE SCANNER</span><h3>SKANNAA TUOTE</h3></div>
+          <button id="closeBarcodeScanner" class="dialog-x" type="button">×</button>
+        </div>
+        <div id="barcodeReader"></div>
+        <div class="barcode-hint">Pidä viivakoodi kameran keskellä. Hyvä valaistus auttaa lukemista.</div>
+      </dialog>
+
+      <dialog id="barcodeProductDialog" class="food-dialog">
+        <form id="barcodeProductForm">
+          <div class="dialog-head">
+            <div><span class="eyebrow">PRODUCT FOUND</span><h3 id="barcodeProductName">TUOTE</h3></div>
+            <button id="closeBarcodeProduct" class="dialog-x" type="button">×</button>
+          </div>
+
+          <div id="barcodeProductMeta" class="barcode-product-meta"></div>
+
+          <div class="form-grid">
+            <label>Määrä (g)<input id="barcodeGrams" type="number" min="1" step="1" value="100" required /></label>
+            <label>Ateria
+              <select id="barcodeMealType">
+                <option>Aamupala</option><option>Lounas</option><option>Välipala</option><option>Päivällinen</option><option>Iltapala</option>
+              </select>
+            </label>
+          </div>
+
+          <div id="barcodeMacrosPreview" class="dialog-macros"></div>
+          <button class="primary full" type="submit">＋ LISÄÄ PÄIVÄÄN</button>
+          <button id="saveBarcodeFavorite" class="secondary full" type="button">★ TALLENNA OMIIN RUOKIIN</button>
+        </form>
+      </dialog>
+
       <div class="nutrition-headline panel">
         <div>
           <span>TÄNÄÄN</span>
@@ -255,6 +301,7 @@
   </nav>
 
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>

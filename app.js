@@ -20,6 +20,8 @@ let state=load();
 state.customFoods=state.customFoods||[];
 state.savedMeals=state.savedMeals||[];
 let runImageData=null;
+let barcodeScanner=null;
+let currentBarcodeProduct=null;
 
 function load(){
   try{
@@ -462,6 +464,212 @@ document.getElementById('copyYesterdayMeal').addEventListener('click',()=>{
   const items=state.food.filter(x=>x.date===y && (x.mealType||'Lounas')===type);
   if(!items.length){alert(`Eiliseltä ei löytynyt ateriaa: ${type}`);return}
   items.forEach(x=>state.food.push({...x,id:uid(),date:today()}));save();
+});
+
+
+// BARCODE SCANNER V4
+async function startBarcodeScanner(){
+  const dlg=document.getElementById('barcodeDialog');
+  const status=document.getElementById('barcodeStatus');
+
+  if(!window.Html5Qrcode){
+    status.textContent='Viivakoodinlukijaa ei saatu ladattua. Tarkista internet-yhteys.';
+    return;
+  }
+
+  dlg.showModal();
+  status.textContent='Kamera käynnistyy...';
+
+  try{
+    barcodeScanner = new Html5Qrcode("barcodeReader");
+    const config={
+      fps:10,
+      qrbox:{width:280,height:150},
+      aspectRatio:1.7778,
+      formatsToSupport:[
+        Html5QrcodeSupportedFormats.EAN_13,
+        Html5QrcodeSupportedFormats.EAN_8,
+        Html5QrcodeSupportedFormats.UPC_A,
+        Html5QrcodeSupportedFormats.UPC_E,
+        Html5QrcodeSupportedFormats.CODE_128
+      ]
+    };
+
+    await barcodeScanner.start(
+      {facingMode:"environment"},
+      config,
+      async decodedText=>{
+        status.textContent='Viivakoodi löytyi: '+decodedText;
+        await stopBarcodeScanner();
+        dlg.close();
+        await lookupBarcode(decodedText);
+      },
+      ()=>{}
+    );
+  }catch(err){
+    console.error(err);
+    status.textContent='Kameraa ei saatu käyttöön. Salli kameran käyttö Safarissa tai syötä viivakoodi käsin.';
+    try{dlg.close()}catch(e){}
+  }
+}
+
+async function stopBarcodeScanner(){
+  if(barcodeScanner){
+    try{
+      const state=barcodeScanner.getState?.();
+      if(state===Html5QrcodeScannerState.SCANNING || state===Html5QrcodeScannerState.PAUSED){
+        await barcodeScanner.stop();
+      }
+      await barcodeScanner.clear();
+    }catch(e){}
+    barcodeScanner=null;
+  }
+}
+
+async function lookupBarcode(code){
+  const status=document.getElementById('barcodeStatus');
+  const clean=String(code||'').replace(/\D/g,'').trim();
+  if(!clean){
+    status.textContent='Anna kelvollinen viivakoodi.';
+    return;
+  }
+
+  status.textContent='Haetaan tuotetta: '+clean+' ...';
+
+  try{
+    const fields=[
+      'code','product_name','product_name_fi','brands',
+      'nutriments','serving_size','image_front_small_url'
+    ].join(',');
+    const url=`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(clean)}.json?fields=${encodeURIComponent(fields)}`;
+    const res=await fetch(url,{headers:{'Accept':'application/json'}});
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const data=await res.json();
+
+    if(!data || data.status!==1 || !data.product){
+      currentBarcodeProduct=null;
+      status.textContent='Tuotetta ei löytynyt tietokannasta. Voit lisätä sen OMA TUOTE -kohdasta.';
+      alert('Tuotetta ei löytynyt tietokannasta. Voit lisätä sen itse OMA TUOTE -kohdasta.');
+      return;
+    }
+
+    const p=data.product;
+    const n=p.nutriments||{};
+    const name=(p.product_name_fi||p.product_name||'Tuntematon tuote').trim();
+    const kcal=pickNumber(n['energy-kcal_100g'], n.energy_kcal_100g, n['energy-kcal']);
+    const protein=pickNumber(n.proteins_100g,n.proteins);
+    const carbs=pickNumber(n.carbohydrates_100g,n.carbohydrates);
+    const fat=pickNumber(n.fat_100g,n.fat);
+
+    if(kcal==null){
+      status.textContent='Tuote löytyi, mutta kaloritietoa ei ollut saatavilla.';
+      alert('Tuote löytyi, mutta ravintoarvot olivat puutteelliset. Lisää tuote itse OMA TUOTE -kohdasta.');
+      return;
+    }
+
+    currentBarcodeProduct={
+      id:'barcode_'+clean,
+      barcode:clean,
+      name,
+      brand:p.brands||'',
+      kcal:num(kcal),
+      protein:num(protein),
+      carbs:num(carbs),
+      fat:num(fat),
+      image:p.image_front_small_url||''
+    };
+
+    showBarcodeProduct();
+    status.textContent='Tuote löytyi: '+name;
+  }catch(err){
+    console.error(err);
+    status.textContent='Tuotehaussa tapahtui virhe. Tarkista internet-yhteys.';
+    alert('Tuotehaussa tapahtui virhe. Yritä uudelleen tai syötä tuote käsin.');
+  }
+}
+
+function pickNumber(...vals){
+  for(const v of vals){
+    const n=Number(v);
+    if(Number.isFinite(n)) return n;
+  }
+  return null;
+}
+
+function showBarcodeProduct(){
+  const p=currentBarcodeProduct;
+  if(!p)return;
+  barcodeProductName.textContent=p.name;
+  barcodeProductMeta.innerHTML=`
+    ${p.image?`<img src="${p.image}" alt="">`:''}
+    <div>
+      <strong>${esc(p.brand||'')}</strong>
+      <small>Viivakoodi ${esc(p.barcode)}</small>
+      <small>${Math.round(p.kcal)} kcal / 100 g</small>
+    </div>`;
+  barcodeGrams.value=100;
+  updateBarcodePreview();
+  barcodeProductDialog.showModal();
+}
+
+function updateBarcodePreview(){
+  const p=currentBarcodeProduct;if(!p)return;
+  const f=num(barcodeGrams.value)/100;
+  barcodeMacrosPreview.innerHTML=`
+    <b>${Math.round(p.kcal*f)} kcal</b>
+    <span>P ${round1(p.protein*f)} g</span>
+    <span>H ${round1(p.carbs*f)} g</span>
+    <span>R ${round1(p.fat*f)} g</span>`;
+}
+
+document.getElementById('openBarcodeScanner').addEventListener('click',startBarcodeScanner);
+
+document.getElementById('closeBarcodeScanner').addEventListener('click',async()=>{
+  await stopBarcodeScanner();
+  barcodeDialog.close();
+});
+
+document.getElementById('barcodeDialog').addEventListener('close',async()=>{
+  await stopBarcodeScanner();
+});
+
+document.getElementById('lookupManualBarcode').addEventListener('click',()=>{
+  lookupBarcode(manualBarcode.value);
+});
+document.getElementById('manualBarcode').addEventListener('keydown',e=>{
+  if(e.key==='Enter'){e.preventDefault();lookupBarcode(manualBarcode.value)}
+});
+
+document.getElementById('barcodeGrams').addEventListener('input',updateBarcodePreview);
+document.getElementById('closeBarcodeProduct').addEventListener('click',()=>barcodeProductDialog.close());
+
+document.getElementById('barcodeProductForm').addEventListener('submit',e=>{
+  e.preventDefault();
+  const p=currentBarcodeProduct;if(!p)return;
+  const grams=num(barcodeGrams.value), f=grams/100;
+  state.food.push({
+    id:uid(),date:today(),mealType:barcodeMealType.value,
+    productId:p.id,name:p.name,grams,
+    kcal:p.kcal*f,protein:p.protein*f,carbs:p.carbs*f,fat:p.fat*f,
+    barcode:p.barcode
+  });
+  barcodeProductDialog.close();
+  save();
+});
+
+document.getElementById('saveBarcodeFavorite').addEventListener('click',()=>{
+  const p=currentBarcodeProduct;if(!p)return;
+  const existing=state.customFoods.find(x=>x.barcode===p.barcode || x.id===p.id);
+  if(existing){
+    existing.favorite=true;
+  }else{
+    state.customFoods.push({
+      id:p.id,barcode:p.barcode,name:p.name,kcal:p.kcal,
+      protein:p.protein,carbs:p.carbs,fat:p.fat,favorite:true
+    });
+  }
+  barcodeStatus.textContent='Tallennettu omiin ruokiin: '+p.name;
+  save();
 });
 
 function renderAll(){renderHome();renderFood();renderWorkouts();renderRuns();renderWeights();renderProgress();renderSettings()}

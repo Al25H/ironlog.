@@ -88,3 +88,23 @@ canvas{width:100%;height:auto;background:#090909;border:1px solid #222}
   .quick-copy .copy-grid{grid-template-columns:1fr}
   .nutrition-headline strong{font-size:20px}
 }
+
+/* BARCODE V4 */
+.barcode-panel{border-left:4px solid var(--red)}
+.barcode-actions{display:grid;gap:10px}
+.barcode-actions>.primary{font-size:15px;padding:16px}
+.barcode-manual{display:grid;grid-template-columns:1fr 90px;gap:8px}
+.barcode-manual input{background:#080808;border:1px solid #343434;color:white;padding:13px;font-family:Arial,sans-serif}
+.barcode-status{margin-top:10px;padding:10px;background:#0b0b0b;border:1px solid #282828;color:#aaa;font-family:Arial,sans-serif;font-size:11px}
+.barcode-dialog{width:min(96vw,620px)}
+#barcodeReader{width:100%;min-height:300px;background:#000;border:1px solid #333;overflow:hidden}
+#barcodeReader video{object-fit:cover}
+.barcode-hint{color:#999;font-family:Arial,sans-serif;font-size:11px;text-align:center;margin-top:10px;line-height:1.4}
+.barcode-product-meta{display:flex;gap:12px;align-items:center;padding:12px;background:#111;border:1px solid #2b2b2b;margin-bottom:14px}
+.barcode-product-meta img{width:70px;height:70px;object-fit:contain;background:white}
+.barcode-product-meta strong,.barcode-product-meta small{display:block}
+.barcode-product-meta small{color:#888;font-family:Arial,sans-serif;margin-top:4px;font-size:11px}
+#saveBarcodeFavorite{margin-top:8px;width:100%}
+@media(max-width:560px){
+  #barcodeReader{min-height:250px}
+}

@@ -65,3 +65,20 @@ Jaa -> Lisää Koti-valikkoon.
 - Kopioi eilisen koko päivä
 - Kopioi eilisen valittu ateria
 - Päivän iso kalorimittari ja makroyhteenveto
+
+
+## V4 – Viivakoodinlukija
+- iPhonen kamera avautuu suoraan Ruoka-sivulta
+- Tukee EAN-13, EAN-8, UPC-A, UPC-E ja Code 128 -koodeja
+- Tuotetiedot haetaan Open Food Facts -tietokannasta
+- Hakee automaattisesti:
+  - tuotteen nimen
+  - kalorit / 100 g
+  - proteiinin / 100 g
+  - hiilihydraatit / 100 g
+  - rasvan / 100 g
+- Käyttäjä antaa vain syödyn grammamäärän ja ateriatyypin
+- Viivakoodi voidaan myös syöttää käsin
+- Löydetty tuote voidaan tallentaa omiin ruokiin/suosikiksi
+- Kamera vaatii HTTPS-yhteyden ja iPhonessa kameran käyttöluvan
+- Kaikkia tuotteita ei välttämättä löydy Open Food Factsista
